@@ -54,7 +54,7 @@ func TestCheckpointStateRestore(t *testing.T) {
 				"policyName": "none",
 				"defaultCPUSet": "4-6",
 				"entries": {},
-				"checksum": 354655845
+				"checksum": 2912033808
 			}`,
 			"none",
 			containermap.ContainerMap{},
@@ -74,7 +74,7 @@ func TestCheckpointStateRestore(t *testing.T) {
 						"container2": "1-3"
 					}
 				},
-				"checksum": 3610638499
+				"checksum": 1102915109
 			}`,
 			"none",
 			containermap.ContainerMap{},
@@ -116,7 +116,7 @@ func TestCheckpointStateRestore(t *testing.T) {
 				"policyName": "other",
 				"defaultCPUSet": "1-3",
 				"entries": {},
-				"checksum": 1394507217
+				"checksum": 419980171
 			}`,
 			"none",
 			containermap.ContainerMap{},
@@ -129,7 +129,7 @@ func TestCheckpointStateRestore(t *testing.T) {
 				"policyName": "none",
 				"defaultCPUSet": "1.3",
 				"entries": {},
-				"checksum": 3021697696
+				"checksum": 1252554646
 			}`,
 			"none",
 			containermap.ContainerMap{},
@@ -147,7 +147,7 @@ func TestCheckpointStateRestore(t *testing.T) {
 						"container2": "asd"
 					}
 				},
-				"checksum": 962272150
+				"checksum": 2414398264
 			}`,
 			"none",
 			containermap.ContainerMap{},

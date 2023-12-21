@@ -41,8 +41,9 @@ import (
 )
 
 type mockState struct {
-	assignments   state.ContainerCPUAssignments
-	defaultCPUSet cpuset.CPUSet
+	assignments      state.ContainerCPUAssignments
+	defaultCPUSet    cpuset.CPUSet
+	guaranteedCPUSet cpuset.CPUSet
 }
 
 func (s *mockState) GetCPUSet(podUID string, containerName string) (cpuset.CPUSet, bool) {
@@ -52,6 +53,10 @@ func (s *mockState) GetCPUSet(podUID string, containerName string) (cpuset.CPUSe
 
 func (s *mockState) GetDefaultCPUSet() cpuset.CPUSet {
 	return s.defaultCPUSet.Clone()
+}
+
+func (s *mockState) GetGuaranteedCPUSet() cpuset.CPUSet {
+	return s.guaranteedCPUSet.Clone()
 }
 
 func (s *mockState) GetCPUSetOrDefault(podUID string, containerName string) cpuset.CPUSet {
@@ -70,6 +75,10 @@ func (s *mockState) SetCPUSet(podUID string, containerName string, cset cpuset.C
 
 func (s *mockState) SetDefaultCPUSet(cset cpuset.CPUSet) {
 	s.defaultCPUSet = cset
+}
+
+func (s *mockState) SetGuaranteedCPUSet(cset cpuset.CPUSet) {
+	s.guaranteedCPUSet = cset
 }
 
 func (s *mockState) Delete(podUID string, containerName string) {

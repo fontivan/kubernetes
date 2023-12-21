@@ -34,10 +34,11 @@ var _ checkpointmanager.Checkpoint = &CPUManagerCheckpoint{}
 
 // CPUManagerCheckpoint struct is used to store cpu/pod assignments in a checkpoint in v2 format
 type CPUManagerCheckpoint struct {
-	PolicyName    string                       `json:"policyName"`
-	DefaultCPUSet string                       `json:"defaultCpuSet"`
-	Entries       map[string]map[string]string `json:"entries,omitempty"`
-	Checksum      checksum.Checksum            `json:"checksum"`
+	PolicyName       string                       `json:"policyName"`
+	DefaultCPUSet    string                       `json:"defaultCpuSet"`
+	GuaranteedCPUSet string                       `json:"guaranteedCpuSet"`
+	Entries          map[string]map[string]string `json:"entries,omitempty"`
+	Checksum         checksum.Checksum            `json:"checksum"`
 }
 
 // CPUManagerCheckpointV1 struct is used to store cpu/pod assignments in a checkpoint in v1 format
@@ -109,7 +110,12 @@ func (cp *CPUManagerCheckpointV1) VerifyChecksum() error {
 	cp.Checksum = ck
 
 	hash := fnv.New32a()
+<<<<<<< HEAD
 	fmt.Fprintf(hash, "%v", object)
+=======
+	printer.Printf("\nold: %v, new: %v\n", cp.Checksum, checksum.Checksum(hash.Sum32()))
+	printer.Fprintf(hash, "%v", object)
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 	if cp.Checksum != checksum.Checksum(hash.Sum32()) {
 		return errors.ErrCorruptCheckpoint
 	}

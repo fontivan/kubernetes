@@ -118,6 +118,11 @@ func (sc *stateCheckpoint) restoreState() error {
 		return fmt.Errorf("could not parse default cpu set %q: %v", checkpointV2.DefaultCPUSet, err)
 	}
 
+	var tmpGuaranteedCPUSet cpuset.CPUSet
+	if tmpGuaranteedCPUSet, err = cpuset.Parse(checkpointV2.GuaranteedCPUSet); err != nil {
+		return fmt.Errorf("could not parse guaranteed cpu set %q: %v", checkpointV2.GuaranteedCPUSet, err)
+	}
+
 	var tmpContainerCPUSet cpuset.CPUSet
 	tmpAssignments := ContainerCPUAssignments{}
 	for pod := range checkpointV2.Entries {
@@ -131,11 +136,12 @@ func (sc *stateCheckpoint) restoreState() error {
 	}
 
 	sc.cache.SetDefaultCPUSet(tmpDefaultCPUSet)
+	sc.cache.SetGuaranteedCPUSet(tmpGuaranteedCPUSet)
 	sc.cache.SetCPUAssignments(tmpAssignments)
 
 	klog.V(2).InfoS("State checkpoint: restored state from checkpoint")
 	klog.V(2).InfoS("State checkpoint: defaultCPUSet", "defaultCpuSet", tmpDefaultCPUSet.String())
-
+	klog.V(2).InfoS("State checkpoint: guaranteedCPUSet", "guaranteedCpuSet", tmpGuaranteedCPUSet.String())
 	return nil
 }
 
@@ -144,6 +150,7 @@ func (sc *stateCheckpoint) storeState() error {
 	checkpoint := NewCPUManagerCheckpoint()
 	checkpoint.PolicyName = sc.policyName
 	checkpoint.DefaultCPUSet = sc.cache.GetDefaultCPUSet().String()
+	checkpoint.GuaranteedCPUSet = sc.cache.GetGuaranteedCPUSet().String()
 
 	assignments := sc.cache.GetCPUAssignments()
 	for pod := range assignments {
@@ -186,6 +193,14 @@ func (sc *stateCheckpoint) GetCPUSetOrDefault(podUID string, containerName strin
 	return sc.cache.GetCPUSetOrDefault(podUID, containerName)
 }
 
+// GetGuaranteedCPUSet returns guaranteed CPU set
+func (sc *stateCheckpoint) GetGuaranteedCPUSet() cpuset.CPUSet {
+	sc.mux.RLock()
+	defer sc.mux.RUnlock()
+
+	return sc.cache.GetGuaranteedCPUSet()
+}
+
 // GetCPUAssignments returns current CPU to pod assignments
 func (sc *stateCheckpoint) GetCPUAssignments() ContainerCPUAssignments {
 	sc.mux.RLock()
@@ -210,6 +225,17 @@ func (sc *stateCheckpoint) SetDefaultCPUSet(cset cpuset.CPUSet) {
 	sc.mux.Lock()
 	defer sc.mux.Unlock()
 	sc.cache.SetDefaultCPUSet(cset)
+	err := sc.storeState()
+	if err != nil {
+		klog.InfoS("Store state to checkpoint error", "err", err)
+	}
+}
+
+// SetGuaranteedCPUSet sets guaranteed CPU set
+func (sc *stateCheckpoint) SetGuaranteedCPUSet(cset cpuset.CPUSet) {
+	sc.mux.Lock()
+	defer sc.mux.Unlock()
+	sc.cache.SetGuaranteedCPUSet(cset)
 	err := sc.storeState()
 	if err != nil {
 		klog.InfoS("Store state to checkpoint error", "err", err)

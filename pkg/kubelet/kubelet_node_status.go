@@ -39,10 +39,15 @@ import (
 	kubeletapis "k8s.io/kubelet/pkg/apis"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/kubelet/cadvisor"
+	"k8s.io/kubernetes/pkg/kubelet/cm/cpuset"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/managed"
 	"k8s.io/kubernetes/pkg/kubelet/nodestatus"
+<<<<<<< HEAD
 	"k8s.io/kubernetes/pkg/kubelet/sharedcpus"
+=======
+	"k8s.io/kubernetes/pkg/kubelet/partition"
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 	"k8s.io/kubernetes/pkg/kubelet/util"
 	taintutil "k8s.io/kubernetes/pkg/util/taints"
 	volutil "k8s.io/kubernetes/pkg/volume/util"
@@ -120,7 +125,11 @@ func (kl *Kubelet) tryRegisterWithAPIServer(node *v1.Node) bool {
 	if managed.IsEnabled() {
 		requiresUpdate = kl.addManagementNodeCapacity(node, existingNode) || requiresUpdate
 	}
+<<<<<<< HEAD
 	requiresUpdate = kl.reconcileSharedCPUsNodeCapacity(node, existingNode) || requiresUpdate
+=======
+	requiresUpdate = kl.addPartitionCpusCapacity(node, existingNode) || requiresUpdate
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 	if requiresUpdate {
 		if _, _, err := nodeutil.PatchNodeStatus(kl.kubeClient.CoreV1(), types.NodeName(kl.nodeName), originalNode, existingNode); err != nil {
 			klog.ErrorS(err, "Unable to reconcile node with API server,error updating node", "node", klog.KObj(node))
@@ -150,6 +159,7 @@ func (kl *Kubelet) addManagementNodeCapacity(initialNode, existingNode *v1.Node)
 	return true
 }
 
+<<<<<<< HEAD
 func (kl *Kubelet) reconcileSharedCPUsNodeCapacity(initialNode, existingNode *v1.Node) bool {
 	updateDefaultResources(initialNode, existingNode)
 	sharedCPUsResourceName := sharedcpus.GetResourceName()
@@ -167,6 +177,66 @@ func (kl *Kubelet) reconcileSharedCPUsNodeCapacity(initialNode, existingNode *v1
 	}
 	existingNode.Status.Capacity[sharedCPUsResourceName] = *q
 	return true
+=======
+func (kl *Kubelet) addPartitionCpusCapacity(initialNode, existingNode *v1.Node) bool {
+	updateDefaultResources(initialNode, existingNode)
+	machineInfo, err := kl.cadvisor.MachineInfo()
+	if err != nil {
+		klog.Errorf("Unable to calculate managed node capacity for %q: %v", kl.nodeName, err)
+		return false
+	}
+
+	var update bool
+	nodeConfig := kl.containerManager.GetNodeConfig()
+	gset, err := cpuset.Parse(partition.GetIsolatedCpuset())
+
+	if err != nil {
+		return false
+	}
+
+	guaranteedPartitionResourceName := partition.GeneratePartitionName("guaranteed-cpus")
+	guaranteedCPURequest := resource.NewMilliQuantity(int64(gset.Size()*1000*1000), resource.DecimalSI)
+	if existingCapacity, ok := existingNode.Status.Capacity[guaranteedPartitionResourceName]; ok && existingCapacity.Equal(*guaranteedCPURequest) {
+		update = false
+	} else {
+		existingNode.Status.Capacity[guaranteedPartitionResourceName] = *guaranteedCPURequest
+		update = true
+	}
+
+	value := resource.NewQuantity(0, resource.DecimalSI)
+	if nodeConfig.SystemReserved != nil {
+		value.Add(nodeConfig.SystemReserved[v1.ResourceCPU])
+	}
+
+	isolatedPartition := make(v1.ResourceList)
+	isolatedCPUSet, err := cpuset.Parse(partition.GetIsolatedCpuset())
+	if err == nil {
+		if isolatedCPUSet.Size() > 0 {
+			numCPUs := resource.NewQuantity(int64(isolatedCPUSet.Size()), resource.DecimalSI)
+			isolatedPartition["cpu"] = *numCPUs
+			value.Add(isolatedPartition[v1.ResourceCPU])
+			klog.InfoS("Update isolatedPartition resource", isolatedPartition)
+		}
+	}
+
+	cpuRequest := cadvisor.CapacityFromMachineInfo(machineInfo)[v1.ResourceCPU]
+	newCPURequest := resource.NewMilliQuantity(int64(cpuRequest.Value()*1000), cpuRequest.Format)
+
+	newCPURequest.Sub(*value)
+	newCPURequest.SetScaled(newCPURequest.Value(), 3)
+
+	sharedPartitionResourceName := partition.GeneratePartitionName("shared-cpus")
+
+	if existingCapacity, ok := existingNode.Status.Capacity[sharedPartitionResourceName]; ok && existingCapacity.Equal(*newCPURequest) {
+		update = false
+	} else {
+		existingNode.Status.Capacity[sharedPartitionResourceName] = *newCPURequest
+		update = true
+	}
+	update = true
+	return update
+
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 }
 
 // reconcileHugePageResource will update huge page capacity for each page size and remove huge page sizes no longer supported
@@ -472,6 +542,8 @@ func (kl *Kubelet) initialNode(ctx context.Context) (*v1.Node, error) {
 		kl.addManagementNodeCapacity(node, node)
 	}
 	kl.reconcileSharedCPUsNodeCapacity(node, node)
+
+	kl.addPartitionCpusCapacity(node, node)
 
 	kl.setNodeStatus(ctx, node)
 

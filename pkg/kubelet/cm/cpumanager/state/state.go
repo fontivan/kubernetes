@@ -41,6 +41,7 @@ type Reader interface {
 	GetDefaultCPUSet() cpuset.CPUSet
 	GetCPUSetOrDefault(podUID string, containerName string) cpuset.CPUSet
 	GetCPUAssignments() ContainerCPUAssignments
+	GetGuaranteedCPUSet() cpuset.CPUSet
 }
 
 type writer interface {
@@ -49,6 +50,7 @@ type writer interface {
 	SetCPUAssignments(ContainerCPUAssignments)
 	Delete(podUID string, containerName string)
 	ClearState()
+	SetGuaranteedCPUSet(cpuset cpuset.CPUSet)
 }
 
 // State interface provides methods for tracking and setting cpu/pod assignment

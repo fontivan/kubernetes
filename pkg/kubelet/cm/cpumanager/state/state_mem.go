@@ -27,6 +27,7 @@ type stateMemory struct {
 	sync.RWMutex
 	assignments   ContainerCPUAssignments
 	defaultCPUSet cpuset.CPUSet
+	guaranteedCPUSet cpuset.CPUSet
 }
 
 var _ State = &stateMemory{}
@@ -36,7 +37,12 @@ func NewMemoryState() State {
 	klog.InfoS("Initialized new in-memory state store")
 	return &stateMemory{
 		assignments:   ContainerCPUAssignments{},
+<<<<<<< HEAD
 		defaultCPUSet: cpuset.New(),
+=======
+		defaultCPUSet: cpuset.NewCPUSet(),
+		guaranteedCPUSet: cpuset.NewCPUSet(),
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 	}
 }
 
@@ -60,6 +66,13 @@ func (s *stateMemory) GetCPUSetOrDefault(podUID string, containerName string) cp
 		return res
 	}
 	return s.GetDefaultCPUSet()
+}
+
+func (s *stateMemory) GetGuaranteedCPUSet() cpuset.CPUSet {
+        s.RLock()
+        defer s.RUnlock()
+
+        return s.guaranteedCPUSet.Clone()
 }
 
 func (s *stateMemory) GetCPUAssignments() ContainerCPUAssignments {
@@ -86,6 +99,14 @@ func (s *stateMemory) SetDefaultCPUSet(cset cpuset.CPUSet) {
 
 	s.defaultCPUSet = cset
 	klog.InfoS("Updated default CPUSet", "cpuSet", cset)
+}
+
+func (s *stateMemory) SetGuaranteedCPUSet(cset cpuset.CPUSet) {
+        s.Lock()
+        defer s.Unlock()
+
+        s.guaranteedCPUSet = cset
+        klog.InfoS("Updated guaranteed CPUSet", "cpuSet", cset)
 }
 
 func (s *stateMemory) SetCPUAssignments(a ContainerCPUAssignments) {

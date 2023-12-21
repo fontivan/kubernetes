@@ -31,7 +31,11 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager/bitmask"
 	"k8s.io/kubernetes/pkg/kubelet/managed"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
+<<<<<<< HEAD
 	"k8s.io/utils/cpuset"
+=======
+	"k8s.io/kubernetes/pkg/kubelet/partition"
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 )
 
 const (
@@ -118,6 +122,8 @@ type staticPolicy struct {
 	cpusToReuse map[string]cpuset.CPUSet
 	// options allow to fine-tune the behaviour of the policy
 	options StaticPolicyOptions
+	// set of cpus to use for guaranteed cpu allocations when guaranteed partition is defined
+	cpusToUse cpuset.CPUSet
 }
 
 // Ensure staticPolicy implements Policy interface
@@ -159,6 +165,8 @@ func NewStaticPolicy(topology *topology.CPUTopology, numReservedCPUs int, reserv
 	}
 
 	if reserved.Size() != numReservedCPUs {
+		// TODO: figure out why Brent had commented these out. Possible conflict with cpus specified
+		// in the guaranteed CPU set?
 		err := fmt.Errorf("[cpumanager] unable to reserve the required amount of CPUs (size of %s did not equal %d)", reserved, numReservedCPUs)
 		return nil, err
 	}
@@ -175,6 +183,16 @@ func NewStaticPolicy(topology *topology.CPUTopology, numReservedCPUs int, reserv
 	klog.InfoS("Reserved CPUs not available for exclusive assignment", "reservedSize", reserved.Size(), "reserved", reserved, "reservedPhysicalCPUs", reservedPhysicalCPUs)
 	policy.reservedCPUs = reserved
 	policy.reservedPhysicalCPUs = reservedPhysicalCPUs
+
+	if partition.PartitioningEnabled() {
+		guaranteed, err := cpuset.Parse(partition.GetIsolatedCpuset())
+		if err == nil {
+			if guaranteed.Size() > 0 {
+				policy.cpusToUse = guaranteed
+				klog.InfoS("BRENT", "policy.cpusToUse", policy.cpusToUse)
+			}
+		}
+	}
 
 	return policy, nil
 }
@@ -203,10 +221,29 @@ func (p *staticPolicy) validateState(s state.State) error {
 		// state is empty initialize
 		allCPUs := p.topology.CPUDetails.CPUs()
 		s.SetDefaultCPUSet(allCPUs)
+
 		if managed.IsEnabled() {
+<<<<<<< HEAD
 			defaultCpus := s.GetDefaultCPUSet().Difference(p.reservedCPUs)
+=======
+			// Remove reserved cpus from DefaultCPUSet
+			defaultCpus := s.GetDefaultCPUSet().Difference(p.reserved)
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 			s.SetDefaultCPUSet(defaultCpus)
 		}
+
+		if partition.PartitioningEnabled() {
+			// Remove reserved and guaranteed cpus from DefaultCPUSet
+			// NOTE: The previous check for managed would have already removed the reserved CPUs
+			// NOTE: Moved this from Brent's original patch (was above the managed.IsEnabled check)
+			nonDefaultCPUs := p.cpusToUse.Union(p.reserved)
+			s.SetDefaultCPUSet(allCPUs.Difference(nonDefaultCPUs))
+
+			if s.GetGuaranteedCPUSet().IsEmpty() {
+				s.SetGuaranteedCPUSet(p.cpusToUse)
+			}
+		}
+
 		return nil
 	}
 
@@ -260,11 +297,19 @@ func (p *staticPolicy) GetAllocatableCPUs(s state.State) cpuset.CPUSet {
 
 // GetAvailableCPUs returns the set of unassigned CPUs minus the reserved set.
 func (p *staticPolicy) GetAvailableCPUs(s state.State) cpuset.CPUSet {
+<<<<<<< HEAD
 	return s.GetDefaultCPUSet().Difference(p.reservedCPUs)
 }
 
 func (p *staticPolicy) GetAvailablePhysicalCPUs(s state.State) cpuset.CPUSet {
 	return s.GetDefaultCPUSet().Difference(p.reservedPhysicalCPUs)
+=======
+	if partition.PartitioningEnabled() {
+		return s.GetGuaranteedCPUSet()
+	}
+
+	return s.GetDefaultCPUSet().Difference(p.reserved)
+>>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 }
 
 func (p *staticPolicy) updateCPUsToReuse(pod *v1.Pod, container *v1.Container, cset cpuset.CPUSet) {
@@ -379,9 +424,14 @@ func (p *staticPolicy) RemoveContainer(s state.State, podUID string, containerNa
 	cpusInUse := getAssignedCPUsOfSiblings(s, podUID, containerName)
 	if toRelease, ok := s.GetCPUSet(podUID, containerName); ok {
 		s.Delete(podUID, containerName)
-		// Mutate the shared pool, adding released cpus.
 		toRelease = toRelease.Difference(cpusInUse)
-		s.SetDefaultCPUSet(s.GetDefaultCPUSet().Union(toRelease))
+		if partition.PartitioningEnabled() {
+			// Mutate the guaranteed pool, adding released cpus.
+			s.SetGuaranteedCPUSet(s.GetGuaranteedCPUSet().Union(toRelease))
+		} else {
+			// Mutate the shared pool, adding released cpus.
+			s.SetDefaultCPUSet(s.GetDefaultCPUSet().Union(toRelease))
+		}
 	}
 	return nil
 }
@@ -415,9 +465,13 @@ func (p *staticPolicy) allocateCPUs(s state.State, numCPUs int, numaAffinity bit
 		return cpuset.New(), err
 	}
 	result = result.Union(remainingCPUs)
-
-	// Remove allocated CPUs from the shared CPUSet.
-	s.SetDefaultCPUSet(s.GetDefaultCPUSet().Difference(result))
+	if partition.PartitioningEnabled() {
+		// Remove allocated CPUs from the guaranteed pool.
+		s.SetGuaranteedCPUSet(s.GetGuaranteedCPUSet().Difference(result))
+	} else {
+		// Remove allocated CPUs from the shared CPUSet.
+		s.SetDefaultCPUSet(s.GetDefaultCPUSet().Difference(result))
+	}
 
 	klog.InfoS("AllocateCPUs", "result", result)
 	return result, nil
