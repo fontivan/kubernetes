@@ -31,11 +31,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager/bitmask"
 	"k8s.io/kubernetes/pkg/kubelet/managed"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
-<<<<<<< HEAD
-	"k8s.io/utils/cpuset"
-=======
 	"k8s.io/kubernetes/pkg/kubelet/partition"
->>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
+	"k8s.io/utils/cpuset"
 )
 
 const (
@@ -223,12 +220,7 @@ func (p *staticPolicy) validateState(s state.State) error {
 		s.SetDefaultCPUSet(allCPUs)
 
 		if managed.IsEnabled() {
-<<<<<<< HEAD
 			defaultCpus := s.GetDefaultCPUSet().Difference(p.reservedCPUs)
-=======
-			// Remove reserved cpus from DefaultCPUSet
-			defaultCpus := s.GetDefaultCPUSet().Difference(p.reserved)
->>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 			s.SetDefaultCPUSet(defaultCpus)
 		}
 
@@ -236,7 +228,7 @@ func (p *staticPolicy) validateState(s state.State) error {
 			// Remove reserved and guaranteed cpus from DefaultCPUSet
 			// NOTE: The previous check for managed would have already removed the reserved CPUs
 			// NOTE: Moved this from Brent's original patch (was above the managed.IsEnabled check)
-			nonDefaultCPUs := p.cpusToUse.Union(p.reserved)
+			nonDefaultCPUs := p.cpusToUse.Union(p.reservedCPUs)
 			s.SetDefaultCPUSet(allCPUs.Difference(nonDefaultCPUs))
 
 			if s.GetGuaranteedCPUSet().IsEmpty() {
@@ -297,19 +289,15 @@ func (p *staticPolicy) GetAllocatableCPUs(s state.State) cpuset.CPUSet {
 
 // GetAvailableCPUs returns the set of unassigned CPUs minus the reserved set.
 func (p *staticPolicy) GetAvailableCPUs(s state.State) cpuset.CPUSet {
-<<<<<<< HEAD
+	if partition.PartitioningEnabled() {
+		return s.GetGuaranteedCPUSet()
+	}
+
 	return s.GetDefaultCPUSet().Difference(p.reservedCPUs)
 }
 
 func (p *staticPolicy) GetAvailablePhysicalCPUs(s state.State) cpuset.CPUSet {
 	return s.GetDefaultCPUSet().Difference(p.reservedPhysicalCPUs)
-=======
-	if partition.PartitioningEnabled() {
-		return s.GetGuaranteedCPUSet()
-	}
-
-	return s.GetDefaultCPUSet().Difference(p.reserved)
->>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 }
 
 func (p *staticPolicy) updateCPUsToReuse(pod *v1.Pod, container *v1.Container, cset cpuset.CPUSet) {

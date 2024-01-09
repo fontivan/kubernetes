@@ -110,12 +110,8 @@ func (cp *CPUManagerCheckpointV1) VerifyChecksum() error {
 	cp.Checksum = ck
 
 	hash := fnv.New32a()
-<<<<<<< HEAD
+	fmt.Printf("\nold: %v, new: %v\n", cp.Checksum, checksum.Checksum(hash.Sum32()))
 	fmt.Fprintf(hash, "%v", object)
-=======
-	printer.Printf("\nold: %v, new: %v\n", cp.Checksum, checksum.Checksum(hash.Sum32()))
-	printer.Fprintf(hash, "%v", object)
->>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
 	if cp.Checksum != checksum.Checksum(hash.Sum32()) {
 		return errors.ErrCorruptCheckpoint
 	}

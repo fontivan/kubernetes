@@ -37,12 +37,8 @@ func NewMemoryState() State {
 	klog.InfoS("Initialized new in-memory state store")
 	return &stateMemory{
 		assignments:   ContainerCPUAssignments{},
-<<<<<<< HEAD
 		defaultCPUSet: cpuset.New(),
-=======
-		defaultCPUSet: cpuset.NewCPUSet(),
-		guaranteedCPUSet: cpuset.NewCPUSet(),
->>>>>>> 82c028cc429 (Prototype of shared CPU pool - v3)
+		guaranteedCPUSet: cpuset.New(),
 	}
 }
 
